@@ -1,18 +1,22 @@
-package com.sandeepsingh.geotaggingapp
+package com.sandeepsingh.geotaggingapp.views
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
-import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE
 import android.support.v4.app.ActivityCompat
 import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
+import android.support.v4.content.FileProvider
 import android.support.v7.app.AlertDialog
 import android.util.Log
 import android.view.LayoutInflater
@@ -25,16 +29,22 @@ import com.google.android.gms.location.*
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import kotlinx.android.synthetic.main.mapview_fragment.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.sandeepsingh.geotaggingapp.adapter.MapItemAdapter
+import com.sandeepsingh.geotaggingapp.BuildConfig
+import com.sandeepsingh.geotaggingapp.IFragmentToActivity
+import com.sandeepsingh.geotaggingapp.R
+import com.sandeepsingh.geotaggingapp.StaticConstants
 import com.sandeepsingh.geotaggingapp.model.MarkerData
 import com.sandeepsingh.geotaggingapp.repo.Prefs
 import com.sandeepsingh.geotaggingapp.utilities.Utils
+import java.io.File
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * Created by Sandeep on 9/22/18.
@@ -43,7 +53,7 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         GoogleMap.OnMarkerDragListener,
-        GoogleMap.OnMapLongClickListener {
+        GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener {
 
     lateinit var iFragmentToActivity : IFragmentToActivity
 
@@ -63,6 +73,10 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
 
     var longitude : Double = 0.0
 
+    var imageUri: Uri ?= null
+
+    var imagePathUrl : String?=null
+
     companion object {
         internal val TAG = "MainActivity"
     }
@@ -72,6 +86,7 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(activity!!)
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
+        requestForPermission()
         initGoogleApiClient()
         return rootView
     }
@@ -170,8 +185,8 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
                             android.Manifest.permission.ACCESS_FINE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED) {
                 //Location Permission already granted
-                fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.myLooper());
-                mGoogleMap.isMyLocationEnabled = true
+//                fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.myLooper())
+               // mGoogleMap.isMyLocationEnabled = true
             } else {
                 //Request Location Permission
                 checkLocationPermission()
@@ -185,7 +200,7 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
 
     fun checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(activity!!, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(activity!!, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(activity!!, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
 
             // Should we show an explanation?
             if (ActivityCompat.shouldShowRequestPermissionRationale(activity!!,
@@ -198,37 +213,71 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
                         .setTitle("Location Permission Needed")
                         .setMessage("This app needs the Location permission, please accept to use location functionality")
                         .setPositiveButton("OK") { p0, p1 ->
-                            ActivityCompat.requestPermissions(activity!!,
-                                    Array(1){android.Manifest.permission.ACCESS_FINE_LOCATION},
-                                    StaticConstants.MY_PERMISSION_ACCESS_COURSE_LOCATION )
+                            requestPermissions(
+                                    arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.CAMERA,android.Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                                    StaticConstants.MY_PERMISSION_ACCESS_COURSE_LOCATION)
                         }
                          .create()
                         .show()
 
             } else {
                 // No explanation needed, we can request the permission.
-                ActivityCompat.requestPermissions(activity!!,
-                        Array(1){android.Manifest.permission.ACCESS_FINE_LOCATION},
-                        StaticConstants.MY_PERMISSION_ACCESS_COURSE_LOCATION )
+                requestPermissions(
+                        arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.CAMERA,android.Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                        StaticConstants.MY_PERMISSION_ACCESS_COURSE_LOCATION)
             }
         }
     }
 
     fun storeMarkerValue(latLng: LatLng){
-        val markerData = MarkerData("Test", latLng.latitude,latLng.longitude,"")
+        val markerData = MarkerData("Test", latLng.latitude,latLng.longitude,imagePathUrl)
         val list = Utils.fetchAllMarkerData(activity!!)
         list.add(markerData)
-        Prefs.setList(context!!,StaticConstants.MY_MARKER_DATA,list)
+        Prefs.setList(context!!, StaticConstants.MY_MARKER_DATA,list)
         iFragmentToActivity.newValueAdded(markerData)
     }
 
-    /*fun openCamera(){
+    fun openCamera(){
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
         imageUri = getOutputMediaFileUri(MEDIA_TYPE_IMAGE)
         Log.d(TAG, "onClick: $imageUri")
         intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri)
-        startActivityForResult(intent, StaticConstants.CROP_PIC)
-    }*/
+        startActivityForResult(intent, StaticConstants.REQUEST_CODE)
+    }
+
+    fun getOutputMediaFileUri(type: Int): Uri? {
+        // return Uri.fromFile(getOutputMediaFile(type));
+        var uri: Uri? = null
+        try {
+            uri = FileProvider.getUriForFile(activity!!, BuildConfig.APPLICATION_ID + ".provider", createImageFile())
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+
+        return uri
+    }
+
+    @Throws(IOException::class)
+    private fun createImageFile(): File {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss",
+                Locale.getDefault()).format(Date())
+        val imageFileName = "IMG_" + timeStamp + "_"
+        val storageDir = activity!!.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        val image = File.createTempFile(
+                imageFileName, /* prefix */
+                ".jpg", /* suffix */
+                storageDir      /* directory */
+        )
+
+        imagePathUrl = image.absolutePath
+        return image
+    }
+
+    fun moveToMarker(latLng: LatLng){
+        mGoogleMap.addMarker(MarkerOptions().position(latLng).draggable(true))
+        mGoogleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng))
+        mGoogleMap.animateCamera(CameraUpdateFactory.zoomTo(15f))
+    }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         when (requestCode) {
@@ -243,8 +292,9 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
                                     android.Manifest.permission.ACCESS_FINE_LOCATION)
                             == PackageManager.PERMISSION_GRANTED) {
 
-                        fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.myLooper());
+                      //  fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.myLooper());
                         mGoogleMap.isMyLocationEnabled = true
+                        mGoogleMap.getUiSettings().setMyLocationButtonEnabled(true)
                     }
 
                 } else {
@@ -262,20 +312,32 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
 
 
     override fun onMapReady(p0: GoogleMap?) {
+        if (p0 == null){
+            return
+        }
+
         checkLocationPermission()
-        mGoogleMap = p0!!
-        mGoogleMap.mapType = GoogleMap.MAP_TYPE_HYBRID
-        val india = LatLng(-34.0, 151.0)
-        mGoogleMap.addMarker(MarkerOptions().position(india).title("Marker in India"))
-        mGoogleMap.moveCamera(CameraUpdateFactory.newLatLng(india))
+        mGoogleMap = p0
+
         mGoogleMap.setOnMarkerDragListener(this)
         mGoogleMap.setOnMapLongClickListener(this)
-        mGoogleMap.setInfoWindowAdapter(MapItemAdapter(activity!!))
+        mGoogleMap.setOnMarkerClickListener(this)
 
         locationRequest = LocationRequest.create()
-        locationRequest.setInterval(120000); // two minute interval
-        locationRequest.setFastestInterval(120000);
-        locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY)
+        locationRequest.interval = 120000 // two minute interval
+        locationRequest.fastestInterval = 120000
+        locationRequest.priority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
+
+        if (ContextCompat.checkSelfPermission(activity!!,
+                        android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.myLooper())
+            mGoogleMap.isMyLocationEnabled = true
+            mGoogleMap.getUiSettings().setMyLocationButtonEnabled(true)
+
+        } else {
+            return
+        }
 
         getCurrentLocation()
     }
@@ -293,9 +355,16 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
     }
 
     override fun onMapLongClick(p0: LatLng?) {
+        openCamera()
         storeMarkerValue(p0!!)
         mGoogleMap.addMarker(MarkerOptions().position(p0!!).draggable(true))
     }
+
+    override fun onMarkerClick(p0: Marker?): Boolean {
+        iFragmentToActivity.onMarkerClickedListener(p0!!.position)
+        return true
+    }
+
 
     override fun onMarkerDragEnd(p0: Marker?) {
         latitude = p0!!.position.latitude
@@ -310,6 +379,20 @@ class MapViewFragment : Fragment(), OnMapReadyCallback,
 
     override fun onMarkerDrag(p0: Marker?) {
 
+    }
+
+    private fun getRealPathFromURI(contentURI: Uri?): String {
+        val result: String
+        val cursor = activity!!.getContentResolver().query(contentURI!!, null, null, null, null)
+        if (cursor == null) { // Source is Dropbox or other similar local file path
+            result = contentURI.path
+        } else {
+            cursor.moveToFirst()
+            val idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA)
+            result = cursor.getString(idx)
+            cursor.close()
+        }
+        return result
     }
 
 

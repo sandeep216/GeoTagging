@@ -1,18 +1,18 @@
-package com.sandeepsingh.geotaggingapp.listview
+package com.sandeepsingh.geotaggingapp.adapter
 
 import android.content.Context
+import android.support.v4.content.ContextCompat
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import butterknife.BindView
-import butterknife.ButterKnife
+import com.bumptech.glide.Glide
+import com.google.android.gms.maps.model.LatLng
+import com.sandeepsingh.geotaggingapp.views.MainActivity
 import com.sandeepsingh.geotaggingapp.R
 import com.sandeepsingh.geotaggingapp.model.MarkerData
-import com.sandeepsingh.geotaggingapp.utilities.Utils
-import org.w3c.dom.Text
 
 /**
  * Created by Sandeep on 9/23/18.
@@ -33,16 +33,22 @@ class ListItemAdapter(val context: Context, var list : MutableList<MarkerData>) 
         p0.markerTitle.text = markerData.title
         p0.markerLat.text = "Lat : " + markerData.latitude
         p0.markerLong.text = "Long : " + markerData.longitude
+
+        if (markerData.markerImage != null && markerData.markerImage.isNotEmpty()) {
+            Glide.with(context).load(markerData.markerImage).into(p0.markerImage)
+        }else {
+            p0.markerImage.setImageDrawable(ContextCompat.getDrawable(context,R.mipmap.ic_launcher))
+        }
+
+        p0.itemView.setOnClickListener {
+            (context as MainActivity).onListItemClicked(LatLng(markerData.latitude,markerData.longitude))
+        }
     }
 
     class ItemViewHolder(itemView : View) : RecyclerView.ViewHolder(itemView) {
+        var markerImage : ImageView = itemView.findViewById(R.id.iv_marker_thumbnail)
         var markerTitle : TextView = itemView.findViewById(R.id.tv_marker_title)
         var markerLat : TextView = itemView.findViewById(R.id.tv_marker_lat)
         var markerLong : TextView = itemView.findViewById(R.id.tv_marker_long)
-    }
-
-    fun newValueAdded(){
-        this.list = Utils.fetchAllMarkerData(context)
-        notifyDataSetChanged()
     }
 }

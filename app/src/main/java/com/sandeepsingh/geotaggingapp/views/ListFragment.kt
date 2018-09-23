@@ -1,4 +1,4 @@
-package com.sandeepsingh.geotaggingapp
+package com.sandeepsingh.geotaggingapp.views
 
 import android.content.Context
 import android.os.Bundle
@@ -11,10 +11,11 @@ import android.view.View
 import android.view.ViewGroup
 import butterknife.BindView
 import butterknife.ButterKnife
-import com.sandeepsingh.geotaggingapp.adapter.MapItemAdapter
-import com.sandeepsingh.geotaggingapp.listview.ListItemAdapter
+import com.google.android.gms.maps.model.LatLng
+import com.sandeepsingh.geotaggingapp.IFragmentToActivity
+import com.sandeepsingh.geotaggingapp.R
+import com.sandeepsingh.geotaggingapp.adapter.ListItemAdapter
 import com.sandeepsingh.geotaggingapp.model.MarkerData
-import com.sandeepsingh.geotaggingapp.repo.Prefs
 import com.sandeepsingh.geotaggingapp.utilities.Utils
 
 /**
@@ -28,6 +29,8 @@ class ListFragment : Fragment() {
     lateinit var mAdapter: ListItemAdapter
 
     lateinit var mActivity : FragmentActivity
+
+    lateinit var iFragmentActivity: IFragmentToActivity
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val rootView = inflater.inflate(R.layout.list_fragment, container, false)
@@ -45,11 +48,16 @@ class ListFragment : Fragment() {
     override fun onAttach(context: Context?) {
         super.onAttach(context)
         mActivity = context as FragmentActivity
+        iFragmentActivity = context as IFragmentToActivity
     }
 
-    fun newValueAdded(markerData: MarkerData) {
+    fun newValueAdded(markerData: MarkerData?) {
         mAdapter = ListItemAdapter(mActivity, Utils.fetchAllMarkerData(mActivity))
         recyclerView.adapter = mAdapter
         mAdapter.notifyDataSetChanged()
+    }
+
+    fun onListItemClickListen(latLng: LatLng){
+        iFragmentActivity.onListItemClicked(latLng)
     }
 }

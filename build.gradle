@@ -26,6 +26,4 @@ task clean(type: Delete) {
     delete rootProject.buildDir
 }
 
-ext{
-    butterKnifeVersion = '8.8.1'
-}
+

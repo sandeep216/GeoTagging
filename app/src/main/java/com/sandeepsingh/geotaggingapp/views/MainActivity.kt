@@ -1,21 +1,22 @@
-package com.sandeepsingh.geotaggingapp
+package com.sandeepsingh.geotaggingapp.views
 
-import android.content.pm.PackageManager
-import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.design.widget.TabLayout
-import android.support.v4.app.ActivityCompat
 import android.support.v4.app.Fragment
+import android.support.v4.app.FragmentActivity
 import android.support.v4.app.FragmentStatePagerAdapter
-import android.support.v4.content.ContextCompat
 import android.support.v4.view.ViewPager
-import android.support.v7.widget.Toolbar
 import butterknife.BindView
 import butterknife.ButterKnife
+import com.google.android.gms.maps.model.LatLng
+import com.sandeepsingh.geotaggingapp.IFragmentToActivity
+import com.sandeepsingh.geotaggingapp.R
+import com.sandeepsingh.geotaggingapp.StaticConstants
 import com.sandeepsingh.geotaggingapp.model.MarkerData
-import kotlinx.android.synthetic.main.activity_main.view.*
+import com.sandeepsingh.geotaggingapp.repo.Prefs
+import com.sandeepsingh.geotaggingapp.utilities.Utils
 
-class MainActivity : AppCompatActivity(),IFragmentToActivity {
+class MainActivity : FragmentActivity(), IFragmentToActivity {
 
     @BindView(R.id.tabs)
     lateinit var tabLayout : TabLayout
@@ -28,6 +29,8 @@ class MainActivity : AppCompatActivity(),IFragmentToActivity {
     private var tabFragmentTitle = ArrayList<String>()
 
     lateinit var listFragment : ListFragment
+
+    lateinit var mapFragment : MapViewFragment
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,7 +45,8 @@ class MainActivity : AppCompatActivity(),IFragmentToActivity {
     fun setupToolbar(){
 
         listFragment = ListFragment()
-        tabFragmentList.add(MapViewFragment())
+        mapFragment = MapViewFragment()
+        tabFragmentList.add(mapFragment)
         tabFragmentList.add(listFragment)
 
         tabFragmentTitle.add("Map")
@@ -89,25 +93,28 @@ class MainActivity : AppCompatActivity(),IFragmentToActivity {
         tabLayout.setupWithViewPager(viewPager)
     }
 
-
-     override fun askForPermission() {
-        if (ContextCompat.checkSelfPermission(this,android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED){
-            ActivityCompat.requestPermissions( this, Array(1){  android.Manifest.permission.ACCESS_COARSE_LOCATION  },
-                    StaticConstants.MY_PERMISSION_ACCESS_COURSE_LOCATION)
-
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        if (ContextCompat.checkSelfPermission(this,android.Manifest.permission.ACCESS_COARSE_LOCATION)== PackageManager.PERMISSION_GRANTED){
-            val fragment = MapViewFragment()
-            if (fragment != null) {
-              //  fragment.getCurrentLocation()
-            }
-        }
-    }
-
     override fun newValueAdded(markerData: MarkerData) {
        listFragment.newValueAdded(markerData)
     }
+
+    override fun onListItemClicked(latLng: LatLng) {
+        mapFragment.moveToMarker(latLng)
+        viewPager.setCurrentItem(0)
+    }
+
+    override fun onMarkerClickedListener(latLng: LatLng) {
+        val markerDataList = Utils.fetchAllMarkerData(this)
+        for (item in markerDataList.indices){
+            val markerData = markerDataList[item]
+            if (markerData.latitude == latLng.latitude && markerData.longitude == latLng.longitude){
+                markerDataList.removeAt(item)
+                markerDataList.add(0,markerData)
+            }
+        }
+
+        Prefs.setList(this, StaticConstants.MY_MARKER_DATA,markerDataList)
+        listFragment.newValueAdded(null)
+        viewPager.setCurrentItem(1)
+    }
+
 }

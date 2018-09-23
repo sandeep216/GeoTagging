@@ -25,6 +25,20 @@ android {
     }
 }
 
+repositories {
+    mavenCentral()
+    google()
+}
+
+ext{
+    butterKnifeVersion = '8.8.1'
+    designSupport = '28.0.0'
+    playServiceVersion = '12.0.1'
+    gsonVersion = '2.8.5'
+    multidexVersion = '1.0.3'
+    glideVersion = '4.8.0'
+}
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
@@ -35,11 +49,15 @@ dependencies {
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'com.android.support:appcompat-v7:28.0.0'
-    implementation 'com.android.support:design:28.0.0'
-    implementation "com.jakewharton:butterknife:$rootProject.butterKnifeVersion"
-    kapt "com.jakewharton:butterknife-compiler:$rootProject.butterKnifeVersion"
-    implementation 'com.google.android.gms:play-services:12.0.1'
 
-    implementation 'com.android.support:multidex:1.0.3'
-    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'com.android.support:design:' + project.designSupport
+    implementation 'com.jakewharton:butterknife:' + project.butterKnifeVersion
+    kapt 'com.jakewharton:butterknife-compiler:' + project.butterKnifeVersion
+    implementation 'com.google.android.gms:play-services:' + project.playServiceVersion
+
+    implementation 'com.android.support:multidex:' + project.multidexVersion
+    implementation 'com.google.code.gson:gson:' + project.gsonVersion
+
+    implementation 'com.github.bumptech.glide:glide:' + project.glideVersion
+    annotationProcessor 'com.github.bumptech.glide:compiler:' + project.glideVersion
 }
